@@ -39,10 +39,16 @@ interface Props {
      * 设置 Cell 背景色的透明度
      */
     opacity?: number
+
+    /**
+     * 传入每个单元格的数据，如果返回 true，则不着色该单元格
+     * 但该单元格如果有合法的数据，依然会用于计算色阶
+     */
+    ignoreCell?(cellData: any, row: any): boolean
 }
 
 const ColorGradient = (props: Props) => {
-    const { children, ignoreColumns = [], opacity = 0.8 } = props
+    const { children, ignoreColumns = [], opacity = 0.8, ignoreCell = () => false } = props
 
     if (!children) {
         return null
@@ -77,10 +83,16 @@ const ColorGradient = (props: Props) => {
             return col
         }
 
+        const dataIndex = col.dataIndex as string
+
         return {
             ...col,
             onCell(record: DataItem, rowIndex: number) {
-                const rgbValues = colorGradient(record[col.dataIndex as string])
+                if(ignoreCell(record[dataIndex], record)) {
+                    return oldOnCell(record, rowIndex)
+                }
+
+                const rgbValues = colorGradient(record[dataIndex])
                 const color = rgbValues && `rgba(${[...rgbValues, opacity].join(',')})`
                 return {
                     ...oldOnCell(record, rowIndex),

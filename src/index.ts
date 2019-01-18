@@ -22,93 +22,96 @@ import { ColumnProps, TableProps } from 'antd/es/table'
 const defaultOnCell = (...args: any[]) => ({})
 
 interface DataItem {
-    [K: string]: any
+  [K: string]: any
 }
 
 type Column = ColumnProps<DataItem>
 
 interface Props {
-    children: React.ReactElement<TableProps<DataItem>>
+  children: React.ReactElement<TableProps<DataItem>>
 
-    /**
-     * dataIndex 的数组，匹配时则不给相应列的所有 Cell 设置背景色
-     */
-    ignoreColumns?: string[]
+  /**
+   * dataIndex 的数组，匹配时则不给相应列的所有 Cell 设置背景色
+   */
+  ignoreColumns?: string[]
 
-    /**
-     * 设置 Cell 背景色的透明度
-     */
-    opacity?: number
+  /**
+   * 设置 Cell 背景色的透明度
+   */
+  opacity?: number
 
-    /**
-     * 传入每个单元格的数据，如果返回 true，则不着色该单元格
-     * 但该单元格如果有合法的数据，依然会用于计算色阶
-     */
-    ignoreCell?(cellData: any, row: any): boolean
+  /**
+   * 传入每个单元格的数据，如果返回 true，则不着色该单元格
+   * 但该单元格如果有合法的数据，依然会用于计算色阶
+   */
+  ignoreCell?(cellData: any, row: any): boolean
 }
 
 const ColorGradient = (props: Props) => {
-    const { children, ignoreColumns = [], opacity = 0.8, ignoreCell = () => false } = props
+  const {
+    children,
+    ignoreColumns = [],
+    opacity = 0.8,
+    ignoreCell = () => false
+  } = props
 
-    if (!children) {
-        return null
+  if (!children) {
+    return null
+  }
+
+  const tableProps = children.props
+  const { dataSource = [], columns = [], ...restTableProps } = tableProps
+
+  // 被 filter 之后，dataIndexList 一定只有 string
+  const dataIndexList = columns
+    .map((c: Column) => c.dataIndex)
+    .filter(identity)
+    .filter(key => !ignoreColumns.includes(key as string)) as string[]
+
+  const validNumberList = flatten<number>(
+    dataSource.map((d: object) => values(pick(d, dataIndexList)))
+  )
+
+  const colorGradient = createColorGradient(validNumberList)
+
+  const updatedColumns = columns.map((col: Column) => {
+    const oldOnCell = col.onCell || defaultOnCell
+
+    if (!col.dataIndex) {
+      console.error('[ColorGradient] 传入的 Table columns 中必须指定 dataIndex')
+      return col
     }
 
-    const tableProps = children.props
-    const { dataSource = [], columns = [], ...restTableProps } = tableProps
+    if (ignoreColumns.includes(col.dataIndex)) {
+      return col
+    }
 
-    // 被 filter 之后，dataIndexList 一定只有 string
-    const dataIndexList = columns
-        .map((c: Column) => c.dataIndex)
-        .filter(identity)
-        .filter(key => !ignoreColumns.includes(key as string)) as string[]
+    const dataIndex = col.dataIndex as string
 
-    const validNumberList = flatten<number>(
-        dataSource.map((d: object) => values(pick(d, dataIndexList)))
-    )
-
-    const colorGradient = createColorGradient(validNumberList)
-
-    const updatedColumns = columns.map((col: Column) => {
-        const oldOnCell = col.onCell || defaultOnCell
-
-        if (!col.dataIndex) {
-            console.error(
-                '[ColorGradient] 传入的 Table columns 中必须指定 dataIndex'
-            )
-            return col
+    return {
+      ...col,
+      onCell(record: DataItem, rowIndex: number) {
+        if (ignoreCell(record[dataIndex], record)) {
+          return oldOnCell(record, rowIndex)
         }
 
-        if (ignoreColumns.includes(col.dataIndex)) {
-            return col
-        }
-
-        const dataIndex = col.dataIndex as string
-
+        const rgbValues = colorGradient(record[dataIndex])
+        const color = rgbValues && `rgba(${[...rgbValues, opacity].join(',')})`
         return {
-            ...col,
-            onCell(record: DataItem, rowIndex: number) {
-                if(ignoreCell(record[dataIndex], record)) {
-                    return oldOnCell(record, rowIndex)
-                }
-
-                const rgbValues = colorGradient(record[dataIndex])
-                const color = rgbValues && `rgba(${[...rgbValues, opacity].join(',')})`
-                return {
-                    ...oldOnCell(record, rowIndex),
-                    style: {
-                        background: color
-                    }
-                }
-            }
+          ...oldOnCell(record, rowIndex),
+          style: {
+            background: color
+          }
         }
-    })
+      }
+    }
+  })
 
-    return React.cloneElement(children, {
-        ...restTableProps,
-        columns: updatedColumns,
-        dataSource
-    })
+  return React.cloneElement(children, {
+    ...restTableProps,
+    columns: updatedColumns,
+    dataSource
+  })
 }
 
 export default ColorGradient

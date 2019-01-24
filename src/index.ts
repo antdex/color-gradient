@@ -97,9 +97,12 @@ const ColorGradient = (props: Props) => {
 
         const rgbValues = colorGradient(record[dataIndex])
         const color = rgbValues && `rgba(${[...rgbValues, opacity].join(',')})`
+        const oldOnCellInfo = oldOnCell(record, rowIndex)
+        const oldOnCellStyle = oldOnCellInfo.style || {}
         return {
-          ...oldOnCell(record, rowIndex),
+          ...oldOnCellInfo,
           style: {
+            ...oldOnCellStyle,
             background: color
           }
         }
